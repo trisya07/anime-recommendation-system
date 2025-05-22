@@ -13,7 +13,6 @@ Sebelum memulai pemodelan, perlu dilakukan instalasi pustaka eksternal yang tida
 
 # install library kebutuhan
 !pip install scikit-surprise
-# !pip install numpy==1.23.5
 
 """## Import Library
 Langkah selanjutnya adalah mengimpor seluruh library yang dibutuhkan dalam proses eksplorasi data, pemrosesan teks, serta pembangunan dan evaluasi model sistem rekomendasi.
