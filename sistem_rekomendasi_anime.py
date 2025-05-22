@@ -13,6 +13,7 @@ Sebelum memulai pemodelan, perlu dilakukan instalasi pustaka eksternal yang tida
 
 # install library kebutuhan
 !pip install scikit-surprise
+# !pip install numpy==1.23.5
 
 """## Import Library
 Langkah selanjutnya adalah mengimpor seluruh library yang dibutuhkan dalam proses eksplorasi data, pemrosesan teks, serta pembangunan dan evaluasi model sistem rekomendasi.
@@ -143,8 +144,10 @@ rating_count = rating['rating'].value_counts().sort_index()
 # Visualisasikan distribusi rating menggunakan barplot dari Seaborn
 sns.barplot(x=rating_count.index, y=rating_count.values).set_title('Distribusi rating');
 
-"""## Menstandarkan Format Genre
-Langkah ini dilakukan untuk menstandarkan format teks pada kolom genre, dilakukan penggantian karakter strip (-) menjadi underscore (_). Hal ini bertujuan agar kolom `genre` yang terdiri dari dua kata seperti `sci-fi` tidak dipisahkan saat diproses oleh algoritma ekstraksi fitur TF-IDF. Proses ini dilakukan dengan metode `str.replace()` pada seluruh entri di kolom `genre`. Dengan begitu, genre-genre tersebut tetap dikenali sebagai satu token yang utuh dalam proses tokenisasi.  
+"""# CONTENT BASE FILTERING
+
+## Menstandarkan Format Genre
+Langkah ini dilakukan untuk menstandarkan format teks pada kolom genre, dilakukan penggantian karakter strip (-) menjadi underscore (_). Hal ini bertujuan agar kolom `genre` yang terdiri dari dua kata seperti `sci-fi` tidak dipisahkan saat diproses oleh algoritma ekstraksi fitur TF-IDF. Proses ini dilakukan dengan metode `str.replace()` pada seluruh entri di kolom `genre`. Dengan begitu, genre-genre tersebut tetap dikenali sebagai satu token yang utuh dalam proses tokenisasi.
 """
 
 # Ganti '-' jadi '_', supaya genre yang punya strip dianggap satu token
@@ -161,8 +164,6 @@ Pertama, nilai kosong pada kolom `genre` diganti dengan string kosong ('') agar 
 Untuk kolom `rating`, nilai kosong diisi dengan nilai rata-rata dari seluruh rating menggunakan `fillna()`, guna mempertahankan data sebanyak mungkin tanpa mengabaikan kualitas.
 
 Baris pada kolom `episodes` yang memiliki nilai 'Unknown' yang terlihat pada pengecekan nilai unik sebelumnya, pada proyek ini dihapus karena nilai tersebut tidak valid.
-
-Dalam dataset rating, terdapat nilai -1 yang merepresentasikan bahwa pengguna belum memberikan rating sebenarnya terhadap suatu anime. Data semacam ini dapat mengganggu proses pelatihan model karena tidak mencerminkan preferensi pengguna yang valid. Oleh karena itu, nilai rating -1 dihapus agar hanya data dengan rating eksplisit yang digunakan dalam sistem rekomendasi.
 """
 
 # menghapus kolom genre dan type yang missing value
@@ -177,12 +178,7 @@ anime['rating'] = anime['rating'].fillna(anime['rating'].mean())
 # kolom episodes yang bernilai unkown dihapus
 anime = anime[anime['episodes'] != 'Unknown']
 
-# Hapus rating = -1 (artinya user belum ngasih rating)
-rating = rating[rating['rating'] != -1]
-
 anime.shape
-
-rating.shape
 
 """## Konversi Tipe Data Kolom episodes
 Kolom episodes secara default dibaca sebagai tipe data objek (string), padahal secara semantik nilainya bersifat numerik. Itu dikarenakan sebelumnya terdapat nilai yang berisi `Unknown` sehingga bertipe data objek. Oleh karena itu, dilakukan konversi tipe data ke dalam bentuk integer. Proses ini penting untuk memastikan data mempunyai data yang berkualitas.
@@ -191,16 +187,7 @@ Kolom episodes secara default dibaca sebagai tipe data objek (string), padahal s
 # Ubah kolom episodes dari string ke integer
 anime['episodes'] = anime['episodes'].astype(int)
 
-"""## Menghapus Duplikasi Data Rating
-Sebelum membangun model rekomendasi berbasis collaborative filtering, penting untuk memastikan bahwa setiap entri data unik. Adanya duplikasi misalnya pengguna memberikan rating yang sama untuk anime yang sama lebih dari satu kali, itu dapat memengaruhi hasil pelatihan model. Oleh karena itu, dilakukan penghapusan baris duplikat pada dataset rating untuk menjaga integritas data.
-"""
-
-# hapus data duplikat pada data rating
-rating = rating.drop_duplicates()
-
-"""# CONTENT BASE FILTERING
-
-## Penerapan TF-IDF pada Fitur Genre
+"""## Penerapan TF-IDF pada Fitur Genre
 Langkah ini bertujuan untuk mengubah data teks pada kolom genre menjadi representasi numerik menggunakan teknik TF-IDF (Term Frequency–Inverse Document Frequency). Caranya yaitu dengan memanfaatkan `TfidfVectorizer` dari `Scikit-learn` untuk menghitung bobot setiap genre berdasarkan frekuensi kemunculannya di seluruh anime. Stop words bahasa Inggris dihapus untuk menghindari kata-kata umum yang tidak bermakna. Hasil transformasi berupa matriks TF-IDF digunakan untuk mengukur kemiripan antar anime dalam proses content-based filtering.
 """
 
@@ -312,7 +299,23 @@ print(f"\nPrecision: {precision:.2f}")
 
 """# COLABORATIVE FILTERING
 
-## Menyiapkan Data untuk Library Surprise
+### Menghapus kolom `rating` yang bernilai -1
+Dalam dataset rating, terdapat nilai -1 yang merepresentasikan bahwa pengguna belum memberikan rating sebenarnya terhadap suatu anime. Data semacam ini dapat mengganggu proses pelatihan model karena tidak mencerminkan preferensi pengguna yang valid. Oleh karena itu, nilai rating -1 dihapus agar hanya data dengan rating eksplisit yang digunakan dalam sistem rekomendasi.
+"""
+
+# Hapus rating = -1 (artinya user belum ngasih rating)
+rating = rating[rating['rating'] != -1]
+
+rating.shape
+
+"""## Menghapus Duplikasi Data Rating
+Sebelum membangun model rekomendasi berbasis collaborative filtering, penting untuk memastikan bahwa setiap entri data unik. Adanya duplikasi misalnya pengguna memberikan rating yang sama untuk anime yang sama lebih dari satu kali, itu dapat memengaruhi hasil pelatihan model. Oleh karena itu, dilakukan penghapusan baris duplikat pada dataset rating untuk menjaga integritas data.
+"""
+
+# hapus data duplikat pada data rating
+rating = rating.drop_duplicates()
+
+"""## Menyiapkan Data untuk Library Surprise
 Untuk membangun model collaborative filtering, digunakan library Surprise yang memerlukan format data tertentu. Oleh karena itu, dilakukan proses persiapan data dengan memanfaatkan Reader dari Surprise untuk mendefinisikan skala rating (dalam hal ini dari 1 hingga 10). Selanjutnya, dataset rating dikonversi ke format internal Surprise menggunakan `Dataset.load_from_df()` agar dapat digunakan dalam proses pelatihan model rekomendasi.
 """
 
