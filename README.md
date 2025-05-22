@@ -75,7 +75,7 @@ Dataset rating berisi data interaksi pengguna dengan anime berupa rating yang di
 
 - Metode `info()` digunakan untuk menampilkan ringkasan struktur DataFrame, seperti jumlah baris, tipe data setiap kolom, serta jumlah nilai yang tidak kosong (non-null) pada tiap kolom. Hal ini membantu mengidentifikasi apakah ada nilai yang hilang dan tipe data yang perlu disesuaikan. Pada kedua dataset proyek ini memiliki struktur dataset sebagai berikut.
   
-  <img width="325" alt="info" src="https://github.com/user-attachments/assets/7a439584-e00a-4b58-a6e6-1f13ea71fbb9" />
+  <img width="328" alt="info" src="https://github.com/user-attachments/assets/310a635e-29b1-421a-b54f-3598ba07b688" />
 
   Dari hasil pengecekan ditemukan beberapa kolom yang memiliki nilai kosong (missing value) pada kolom genre, type dan arting. Hal ini menunjukkan bahwa tidak semua data anime memiliki informasi lengkap pada kolom tersebut, sehingga perlu dilakukan penanganan missing value sebelum proses analisis dan pemodelan agar tidak menimbulkan error atau bias. Selain itu pada kolom `episodes` memiliki tipe data object, seharusnya bertipe data integer, untuk itu perlu dianalisis lebih lanjut mengenai penyebab ketidaksesuaian ini. Untuk dataset rating semua kolom bertipe integer dan tidak ditemukan missing value, yang berarti data rating cukup lengkap dan siap dipakai untuk pemodelan. Secara keseluruhan, kedua dataset memiliki struktur data yang jelas dengan sebagian kecil nilai yang hilang di dataset anime, dan tipe data yang tidak sesuai. Penanganan missing value dan konversi tipe data menjadi tahap penting untuk memastikan kualitas data sebelum analisis lebih lanjut.
   
@@ -133,14 +133,16 @@ Eksplorasi nilai unik ini hanya dilakukan pada dataset anime karena dari hasil d
   
 ## Data Preparation
 
-### Menstandarkan Format Genre
+### 1. Content-Based Filtering
+
+#### Menstandarkan Format Genre
 
 Menstandarkan format teks pada kolom genre, dilakukan penggantian karakter strip (-) menjadi underscore (_). Hal ini bertujuan agar kolom genre yang terdiri dari dua kata seperti sci-fi tidak dipisahkan saat diproses oleh algoritma ekstraksi fitur TF-IDF. Proses ini dilakukan dengan metode str.replace() pada seluruh entri di kolom genre. Dengan begitu, genre-genre tersebut tetap dikenali sebagai satu token yang utuh dalam proses tokenisasi.
 ```python
 anime['genre'] = anime['genre'].str.replace('-', '_')
 ```
 
-### Pembersihan Data: Penanganan Missing Value dan Nilai Tidak Valid
+#### Pembersihan Data: Penanganan Missing Value dan Nilai Tidak Valid
 
 Meskipun pada Content-based filtering proyek ini berfokus pada variabel `genre` pembersihan pada dilakukan pada seluruh kolom untuk memastikan integritas data secara keseluruhan. 
 - Menghapus nilai missing value
@@ -160,24 +162,16 @@ Meskipun pada Content-based filtering proyek ini berfokus pada variabel `genre` 
   ```python
   anime = anime[anime['episodes'] != 'Unknown']
   ```
-  selain itu juga pada dataset rating pada kolom `rating` terdapat yang bernilai `-1` yang merepresentasikan bahwa pengguna belum memberikan rating sebenarnya terhadap suatu anime. Data semacam ini dapat mengganggu proses pelatihan model karena tidak mencerminkan preferensi pengguna yang valid. Oleh karena itu, nilai rating -1 dihapus agar hanya data dengan rating eksplisit yang digunakan dalam sistem rekomendasi.
-  ```python
-  rating = rating[rating['rating'] != -1]
-  ```
 
-setelah dilakukan pembersihan pada dataset anime memiliki 11954 baris dan 7 kolom, dan pada dataset rating memiliki 6337241 baris dan 3 kolom.
+setelah dilakukan pembersihan pada dataset anime memiliki 11954 baris dan 7 kolom.
 
-### Konversi Tipe Data Kolom episodes
+#### Konversi Tipe Data Kolom episodes
 
 Kolom episodes secara default dibaca sebagai tipe data objek (string), padahal secara semantik nilainya bersifat numerik. Itu dikarenakan sebelumnya terdapat nilai yang berisi `Unknown` sehingga bertipe data objek. Oleh karena itu, dilakukan konversi tipe data ke dalam bentuk integer. Proses ini penting untuk memastikan data mempunyai data yang berkualitas.
 
 ```python
 anime['episodes'] = anime['episodes'].astype(int)
 ```
-
-### Menghapus Duplikasi Data Rating
-
-berdasarkan pengecekan data duplikat sebelumnya, pada dataset rating terdapat data duplikat sebanyak satu data. Untuk itu dilakukan penghapusan untuk menajga intergritas data. penghapusan data duplikat menggunakan `drop_duplicates()`
 
 ### Penerapan TF-IDF pada Fitur Genre
 
@@ -186,6 +180,38 @@ Pada metode content-based filtering, digunakan teknik TF-IDF (Term Frequency–I
 tfidf = TfidfVectorizer(stop_words='english')
 tfidf_matrix = tfidf.fit_transform(anime['genre'])
 ```
+
+### 2. Collaborative Filtering
+
+#### Menghapus kolom `rating` yang bernilai `-1`
+
+Pada dataset rating pada kolom `rating` terdapat yang bernilai `-1` yang merepresentasikan bahwa pengguna belum memberikan rating sebenarnya terhadap suatu anime. Data semacam ini dapat mengganggu proses pelatihan model karena tidak mencerminkan preferensi pengguna yang valid. Oleh karena itu, nilai rating -1 dihapus agar hanya data dengan rating eksplisit yang digunakan dalam sistem rekomendasi.
+  ```python
+  rating = rating[rating['rating'] != -1]
+  ```
+setelah dilakukan pembersihan pada dataset rating memiliki 6337241 baris dan 3 kolom.
+
+#### Menghapus Duplikasi Dataset Rating
+
+berdasarkan pengecekan data duplikat sebelumnya, pada dataset rating terdapat data duplikat sebanyak satu data. Untuk itu dilakukan penghapusan untuk menajga intergritas data. penghapusan data duplikat menggunakan `drop_duplicates()`
+
+#### Menentukan Skala Rating
+
+Sistem rekomendasi ini menggunakan data rating dari pengguna terhadap anime dengan skala 1 hingga 10. Oleh karena itu, objek Reader dari library Surprise didefinisikan dengan `rating_scale=(1, 10)`. Informasi ini penting untuk memberi tahu algoritma batas bawah dan atas nilai rating yang digunakan.
+```python
+reader = Reader(rating_scale=(1, 10))
+```
+
+#### Mengonversi DataFrame ke Format Surprise
+
+Dataset asli yang berisi tiga kolom (user_id, anime_id, dan rating) dikonversi ke format internal Surprise menggunakan fungsi `Dataset.load_from_df()`. Format ini dibutuhkan agar data dapat dibaca dan diproses oleh model collaborative filtering yang akan digunakan. Proses konversi ini menghasilkan objek dataset yang siap untuk dibagi menjadi data pelatihan dan pengujian.
+```python
+data = Dataset.load_from_df(rating[['user_id', 'anime_id', 'rating']], reader)
+```
+
+#### Pembagian data pelatihan dan data testing
+
+Setelah data rating dikonversi ke dalam format yang sesuai dengan pustaka `Surprise`, langkah selanjutnya adalah membagi data menjadi dua bagian, yaitu data pelatihan (training set) dan data pengujian (test set). Pembagian ini dilakukan dengan proporsi 80:20, di mana 80% data digunakan untuk melatih model dan 20% sisanya digunakan untuk menguji performa model terhadap data yang belum pernah dilihat sebelumnya. Selain itu, nilai `random_state` juga ditentukan agar proses pembagian data bersifat reproducible, sehingga hasil evaluasi model tetap konsisten apabila dijalankan ulang di waktu yang berbeda. Pada proyek ini data pelatihan terdiri sebanyak 5.069.792 data dan data testing sebanyak 1.267.448 data.
 
 ## Modeling
 ahapan ini membahas model sistem rekomendasi yang digunakan untuk memberikan rekomendasi anime kepada pengguna. Dua pendekatan utama yang digunakan dalam proyek ini adalah Content-Based Filtering dan Collaborative Filtering. Masing-masing pendekatan memiliki mekanisme dan keunggulannya sendiri, serta menghasilkan output berupa Top-N Recommendation.
@@ -214,17 +240,13 @@ Tahapan modeling sistem rekomendasi ini menggunakan pendekatan content-based fil
 **2. Collaborative Filtering dengan Singular Value Decomposition (SVD)** 
 
 Tahapan modeling selanjutnya menggunakan pendekatan Collaborative Filtering, yaitu merekomendasikan anime berdasarkan pola perilaku pengguna lain dengan preferensi serupa. Metode ini tidak bergantung pada konten (genre), tetapi pada interaksi pengguna–item dalam bentuk rating. Model yang digunakan adalah SVD (Singular Value Decomposition) dari library `Surprise`. Tahapan yang dilakukan:
-- Persiapan Data untuk Surprise
-  Data rating yang berisi informasi user_id, anime_id, dan rating dikonversi ke format yang sesuai dengan library Surprise. Proses ini dilakukan dengan `Dataset.load_from_df()` dan definisi skala rating 1–10 melalui `Reader()`.
-- Train-Test Split
-  Data dibagi menjadi dua bagian: data pelatihan (80%) dan data pengujian (20%) menggunakan `train_test_split()`. Ini penting untuk melatih model di sebagian data dan menguji kemampuannya di data yang belum pernah dilihat.
 - Pelatihan Model SVD
-  Model SVD dibuat dan dilatih menggunakan data pelatihan (trainset) dengan fungsi `fit()`. Model ini akan belajar memetakan representasi laten dari user dan item berdasarkan pola rating yang tersedia.
+  Dataset yang sudah dibagi menjadi data training dan data testing kemudian model SVD dibuat dan dilatih menggunakan data pelatihan (trainset) dengan fungsi `fit()`. Model ini akan belajar memetakan representasi laten dari user dan item berdasarkan pola rating yang tersedia.
 - Prediksi Rating di Test Set
   Setelah dilatih, model melakukan prediksi terhadap data pengujian (testset) menggunakan model.test(). Prediksi ini akan digunakan untuk evaluasi dan penentuan rekomendasi.
 - Fungsi Evaluasi Top-N
   Fungsi get_top_n() dibuat untuk mengambil N anime terbaik bagi setiap pengguna berdasarkan hasil prediksi rating tertinggi. Fungsi ini akan mengurutkan prediksi per pengguna dan mengembalikan daftar item dengan estimasi terbaik.
-- Menghitung Precision@K dan Recall@K
+- Menghitung Precision dan Recall
   Fungsi precision_recall_at_k() digunakan untuk menghitung performa model dalam konteks sistem rekomendasi. Metrik ini mengukur berapa banyak rekomendasi yang benar-benar relevan (berdasarkan threshold rating ≥ 4.0), dibandingkan total rekomendasi yang diberikan.
 - Rekomendasi untuk Pengguna Tertentu
   Untuk menunjukkan hasil nyata dari model, sistem merekomendasikan 10 anime dengan prediksi rating tertinggi kepada pengguna dengan ID tertentu (misalnya user_id = 40115). Daftar anime yang belum pernah dirating oleh pengguna tersebut diprediksi rating-nya, kemudian diurutkan berdasarkan estimasi tertinggi.
